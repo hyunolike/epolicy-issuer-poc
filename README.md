@@ -138,7 +138,7 @@ It prints a Markdown table you can paste straight into
 
 | Success criterion | How it is checked | Result |
 |---|---|---|
-| 10,000 documents issued within a 512MB heap | `benchmark` profile with `-Xmx512m` | [BENCHMARK.md](docs/BENCHMARK.md) |
+| 10,000 documents issued within a 512MB heap | `benchmark` profile with `-Xmx512m` | pass — 597s, peak 511MB ([details](docs/BENCHMARK.md)) |
 | Output passes PDF/A-1b validation | `PolicyIssuancePipelineTest.isPdfA1bCompliant` (veraPDF) | pass |
 | Signature verifies, **and fails on a 1-byte change** | `DocumentIntegrityTest` | pass |
 | Re-issuing the same contract yields the same contentHash | `IssuanceIdempotencyTest` | pass |

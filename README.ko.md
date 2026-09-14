@@ -134,7 +134,7 @@ java -Xmx512m -jar build/libs/epolicy-issuer-0.1.0-SNAPSHOT.jar \
 
 | 성공 기준 | 확인 방법 | 결과 |
 |---|---|---|
-| 1만 건 배치가 힙 512MB 안에서 완주 | `benchmark` 프로파일 + `-Xmx512m` | [BENCHMARK.md](docs/BENCHMARK.md) |
+| 1만 건 배치가 힙 512MB 안에서 완주 | `benchmark` 프로파일 + `-Xmx512m` | 통과 — 597초, 힙 최대 511MB ([상세](docs/BENCHMARK.md)) |
 | 생성 PDF 가 PDF/A-1b 검증 통과 | `PolicyIssuancePipelineTest.isPdfA1bCompliant` (veraPDF) | 통과 |
 | 서명 검증 통과 + **1바이트 변조 시 검증 실패** | `DocumentIntegrityTest` | 통과 |
 | 동일 계약 재발급 시 contentHash 동일 | `IssuanceIdempotencyTest` | 통과 |
