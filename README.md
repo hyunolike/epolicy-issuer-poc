@@ -1,57 +1,104 @@
+<div align="center">
+
 # epolicy-issuer
 
-전자보험증권(electronic policy) 발급 PoC. **규제 요건이 아키텍처를 어떻게 결정하는가**를 코드로 확인하는 것이 목적이다.
+**Electronic insurance policy issuance — a proof of concept in which the regulatory
+requirements, not the libraries, decide the architecture.**
 
-라이브러리 벤치마크가 아니다. 장기보존(PDF/A), 무결성 증명(전자서명), 교부 증적(발급 이력), 개인정보 마스킹, 대량 발급 — 다섯 가지 요건이 각각 파이프라인의 **순서와 경계를 어떻게 강제하는지**가 이 저장소의 내용이다.
+[![Java](https://img.shields.io/badge/Java-17-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Spring Batch](https://img.shields.io/badge/Spring%20Batch-5-6DB33F?logo=spring&logoColor=white)](https://spring.io/projects/spring-batch)
+[![PDFBox](https://img.shields.io/badge/Apache%20PDFBox-3.0-D22128?logo=apache&logoColor=white)](https://pdfbox.apache.org/)
+[![PDF/A-1b](https://img.shields.io/badge/PDF%2FA--1b-veraPDF%20verified-0A7BBB)](https://verapdf.org/)
+[![PAdES](https://img.shields.io/badge/Signature-PAdES%20B--B%20%2F%20B--T-4B32C3)](https://www.etsi.org/)
 
-```
-계약 데이터 조회
-      ↓
- [1] 마스킹 적용        ← 도메인 레벨. 렌더 전에 끝낸다
-      ↓
- [2] 템플릿 바인딩       Thymeleaf → HTML
-      ↓
- [3] PDF 렌더           openhtmltopdf
-      ↓
- [4] PDF/A-1b 변환      PDFBox + ICC + XMP     ← 반드시 서명 전
-      ↓
- [5] 콘텐츠 해시 계산    SHA-256                ← 멱등성 판단 기준
-      ↓
- [6] PAdES 전자서명      BouncyCastle (+ TSA)
-      ↓
- [7] 보관소 저장 + 발급 이력 기록
-```
+**English** · [한국어](README.ko.md)
 
-순서를 바꿀 수 없는 지점이 세 군데다. 그 이유가 [docs/DESIGN.md](docs/DESIGN.md) 3.2 에 있다.
+</div>
 
 ---
 
-## 빠른 시작
+## Table of Contents
+
+- [What this is](#what-this-is)
+- [The pipeline](#the-pipeline)
+- [Quick start](#quick-start)
+- [What this PoC proves](#what-this-poc-proves)
+- [The three decisions that shape everything](#the-three-decisions-that-shape-everything)
+- [Project structure](#project-structure)
+- [Tech stack](#tech-stack)
+- [Out of scope](#out-of-scope)
+- [Documentation](#documentation)
+
+---
+
+## What this is
+
+Not a library benchmark. The point is to show **how regulatory requirements force the order
+and the boundaries of a pipeline**.
+
+Five requirements — long-term preservation (PDF/A), integrity proof (digital signature),
+delivery evidence (issuance history), personal-data masking, and bulk issuance — each pin
+down a part of the design that cannot be moved afterwards. That is what this repository
+contains.
+
+| Requirement | What it forces on the architecture |
+|---|---|
+| Long-term preservation | PDF/A compliance → fonts must be embedded, no external resources |
+| Integrity proof | PAdES signature (+ TSA) → the file cannot be touched after signing |
+| Delivery evidence | Issuance history + hashes → re-issuance needs an idempotency rule |
+| Personal-data protection | Masking must happen **before** rendering, not in the template |
+| Bulk issuance | Chunked batch + streaming → never hold a whole PDF on the heap |
+
+## The pipeline
+
+```
+Load contract
+      ↓
+ [1] Apply masking        ← domain level; finished before rendering
+      ↓
+ [2] Bind template        Thymeleaf → HTML
+      ↓
+ [3] Render PDF           openhtmltopdf
+      ↓
+ [4] Convert to PDF/A-1b  PDFBox + ICC + XMP        ← must precede signing
+      ↓
+ [5] Compute contentHash  SHA-256                   ← the idempotency key
+      ↓
+ [6] PAdES signature      BouncyCastle (+ TSA)
+      ↓
+ [7] Store + record issuance history
+```
+
+Three of these steps cannot be reordered. The reasons are in
+[docs/DESIGN.md §3](docs/DESIGN.md).
+
+## Quick start
 
 ```bash
-./gradlew test            # 전체 검증 (veraPDF PDF/A 검증 포함, 네트워크 불필요)
-./gradlew bootRun         # H2 인메모리로 기동, http://localhost:8080
+./gradlew test      # full verification, including veraPDF PDF/A checks — no network needed
+./gradlew bootRun   # starts on H2 in-memory at http://localhost:8080
 ```
 
 ```bash
-# 합성 계약 100건 생성 → 배치 발급 → 검증
+# seed 100 synthetic contracts → issue them in a batch → verify one
 curl -XPOST 'localhost:8080/api/admin/seed?count=100'
 curl -XPOST 'localhost:8080/api/admin/batch/run'
 curl 'localhost:8080/api/verification/policies/KB-2026-0001-0000' | jq
 
-# 단건 발급 + 증권 내려받기
+# issue a single policy and download the document
 curl -XPOST 'localhost:8080/api/policies/KB-2026-0001-0000/issue' | jq
 curl -o policy.pdf 'localhost:8080/api/policies/KB-2026-0001-0000/document'
 ```
 
-PostgreSQL 로 돌리려면:
+Running against PostgreSQL:
 
 ```bash
 docker compose up -d
 ./gradlew bootRun --args='--spring.profiles.active=postgres'
 ```
 
-측정:
+Measuring:
 
 ```bash
 ./gradlew bootJar
@@ -60,33 +107,55 @@ java -Xmx512m -jar build/libs/epolicy-issuer-0.1.0-SNAPSHOT.jar \
   --spring.main.web-application-type=none
 ```
 
-마크다운 표가 그대로 찍힌다. 결과는 [docs/BENCHMARK.md](docs/BENCHMARK.md) 참고.
+It prints a Markdown table you can paste straight into
+[docs/BENCHMARK.md](docs/BENCHMARK.md).
 
----
+## What this PoC proves
 
-## 이 PoC 가 증명하는 것
-
-| 성공 기준 | 확인 방법 | 결과 |
+| Success criterion | How it is checked | Result |
 |---|---|---|
-| 1만 건 배치가 힙 512MB 안에서 완주 | `--spring.profiles.active=benchmark` + `-Xmx512m` | [BENCHMARK.md](docs/BENCHMARK.md) |
-| 생성 PDF 가 PDF/A-1b 검증 통과 | `PolicyIssuancePipelineTest.isPdfA1bCompliant` (veraPDF) | 통과 |
-| 서명 검증 통과 + **1바이트 변조 시 검증 실패** | `DocumentIntegrityTest` | 통과 |
-| 동일 계약 재발급 시 contentHash 동일 | `IssuanceIdempotencyTest` | 통과 |
-| PDF 텍스트 레이어에 원본 개인정보 없음 | `PolicyIssuancePipelineTest.doesNotLeakPersonalDataIntoTextLayer` | 통과 |
+| 10,000 documents issued within a 512MB heap | `benchmark` profile with `-Xmx512m` | [BENCHMARK.md](docs/BENCHMARK.md) |
+| Output passes PDF/A-1b validation | `PolicyIssuancePipelineTest.isPdfA1bCompliant` (veraPDF) | pass |
+| Signature verifies, **and fails on a 1-byte change** | `DocumentIntegrityTest` | pass |
+| Re-issuing the same contract yields the same contentHash | `IssuanceIdempotencyTest` | pass |
+| No raw personal data in the PDF text layer | `PolicyIssuancePipelineTest.doesNotLeakPersonalDataIntoTextLayer` | pass |
 
-veraPDF 는 CLI 가 아니라 `org.verapdf:validation-model` 라이브러리를 테스트 의존성으로 넣어 JUnit 안에서 돌린다. 따로 설치할 것이 없고, PDF/A 준수가 **회귀 테스트**가 된다.
+veraPDF runs as a **library** (`org.verapdf:validation-model`) inside JUnit rather than as a
+CLI. Nothing to install, and PDF/A compliance becomes a regression test instead of something
+a human remembers to run. The same trick is used for timestamping: an
+[in-process RFC 3161 TSA](src/test/java/com/hyunolike/epolicy/support/EmbeddedTsaServer.java)
+exercises the PAdES-B-T path without any network.
 
----
+## The three decisions that shape everything
 
-## 구조
+**Masking lives in the domain, not the template.** Passing a raw resident registration number
+to the template and hiding it with CSS leaves the original in the PDF text layer — extract the
+text and it is right there. No visual review will ever catch that. So the render layer receives
+`PolicyView`, whose every field is a `MaskedValue`, and `MaskedValue` rejects anything that
+still *looks* unmasked. There is no code path from the template to the original.
 
-`application` 이 포트를 정의하고 `infrastructure` 가 어댑터를 붙이는 헥사고날 라이트 구조다.
+**PDF/A conversion precedes signing.** Signing freezes the bytes; adding metadata afterwards
+breaks the signature. This ordering is physical, not stylistic.
+
+**There are two hashes, deliberately.** `contentHash` (pre-signature) answers "is this the same
+document?" and `fileHash` (post-signature) answers "has the stored file been touched?". A
+signature embeds a timestamp, so identical content produces different files every time — judge
+idempotency by `fileHash` and every re-issuance looks like a new document forever.
+
+Making `contentHash` usable required the render to be deterministic: document dates come from
+the contract date rather than the wall clock, the PDF `/ID` is derived from the policy number,
+and the date locale is pinned. [docs/DESIGN.md](docs/DESIGN.md) has the full reasoning,
+including what changed during implementation and why.
+
+## Project structure
+
+`application` defines the ports, `infrastructure` supplies the adapters — hexagonal-lite.
 
 ```
 src/main/java/com/hyunolike/epolicy/
 ├─ domain/
 │  ├─ contract/     Contract, Party, RegisteredNo, Money, Coverage
-│  ├─ masking/      MaskingPolicy, MaskedValue          ← 마스킹은 도메인에 있다
+│  ├─ masking/      MaskingPolicy, MaskedValue          ← masking is domain logic
 │  └─ document/     PolicyView, PolicyDocument, ContentHash, PdfArtifact
 ├─ application/
 │  ├─ port/in/      IssuePolicyUseCase, VerifyDocumentUseCase
@@ -97,54 +166,64 @@ src/main/java/com/hyunolike/epolicy/
 ├─ infrastructure/
 │  ├─ render/       ThymeleafTemplateAdapter, OpenHtmlPdfAdapter
 │  ├─ pdfa/         PdfBoxArchiveAdapter
-│  ├─ sign/         PadesSignAdapter, TsaClientAdapter, 서명 검증
+│  ├─ sign/         PadesSignAdapter, TsaClientAdapter, signature verification
 │  ├─ storage/      LocalFsStorageAdapter
-│  ├─ buffer/       InMemory / TempFile PdfArtifactFactory   ← 메모리 전략 실험
-│  ├─ persistence/  JPA 엔티티 + 어댑터
-│  └─ config/       포트 ↔ 어댑터 결선
-├─ batch/           Spring Batch 잡, 파티셔너, SkipListener
-├─ api/             발급 / 검증 / 운영 컨트롤러
-└─ support/         합성 데이터 시더, 측정 러너
+│  ├─ buffer/       InMemory / TempFile PdfArtifactFactory   ← the memory experiment
+│  ├─ persistence/  JPA entities and adapters
+│  └─ config/       port ↔ adapter wiring
+├─ batch/           Spring Batch job, partitioner, skip listener
+├─ api/             issuance / verification / admin controllers
+└─ support/         synthetic data seeder, benchmark runner
 ```
 
-포트를 잘게 쪼갠 이유는 라이브러리 비교가 PoC 목적 중 하나이기 때문이다. 렌더러를 Playwright 나 PD4ML 로 바꾸는 변경은 `IssuanceConfiguration` 한 줄이고, 파이프라인 코드는 손대지 않는다.
+The ports are fine-grained because comparing libraries is one of the goals. Swapping the
+renderer for Playwright or PD4ML is a one-line change in `IssuanceConfiguration`; the pipeline
+code does not move.
 
----
+## Tech stack
 
-## 기술 스택
-
-| 영역 | 선택 | 비고 |
+| Area | Choice | Note |
 |---|---|---|
-| 런타임 | Java 17 타깃, Spring Boot 3.3 | 빌드는 JDK 17+ |
-| 배치 | Spring Batch 5 | 청크 + 파티셔닝 |
-| 템플릿 | Thymeleaf | 버전 디렉터리(`templates/policy/v1/`) |
-| PDF 렌더 | `io.github.openhtmltopdf` 1.1.85 | PDFBox 3 기반 포크. `danfickle` 원본 아님 |
-| PDF 조작 | Apache PDFBox 3.0.7 | PDF/A 변환, 서명, 검증 |
-| 서명 | BouncyCastle 1.78.1 | PAdES-B-B / B-T |
-| 타임스탬프 | RFC 3161 (공개 TSA) | 기본 비활성 |
-| DB | H2 (로컬) / PostgreSQL (docker-compose) | |
-| PDF/A 검증 | veraPDF 1.28.2 (라이브러리) | 테스트에 내장 |
+| Runtime | Java 17 target, Spring Boot 3.3 | builds on JDK 17+ |
+| Batch | Spring Batch 5 | chunked, optionally partitioned |
+| Template | Thymeleaf | versioned directories (`templates/policy/v1/`) |
+| PDF rendering | `io.github.openhtmltopdf` 1.1.85 | the PDFBox 3 fork, **not** the `danfickle` original |
+| PDF manipulation | Apache PDFBox 3.0.7 | PDF/A conversion, signing, verification |
+| Signing | BouncyCastle 1.78.1 | PAdES-B-B / B-T |
+| Timestamping | RFC 3161 (public TSA) | disabled by default |
+| Database | H2 (local) / PostgreSQL (docker-compose) | |
+| PDF/A validation | veraPDF 1.28.2 (library) | embedded in the test suite |
 
-`openhtmltopdf` 는 **LGPL-2.1** 이다. 라이브러리로 링크해 쓰는 이 구성에서는 문제가 없지만, 사내 배포 정책에 따라 검토가 필요할 수 있다. 상용 비교군(PD4ML)을 붙일 자리를 `PdfRenderPort` 로 열어 둔 것도 이 맥락이다.
+`openhtmltopdf` is **LGPL-2.1**. Linking it as a library is fine here, but your organisation's
+distribution policy may still want a look. That is part of why `PdfRenderPort` leaves room for
+a commercial comparison (PD4ML).
 
-폰트는 나눔고딕(SIL Open Font License 1.1, `src/main/resources/fonts/OFL.txt`),
-ICC 프로파일은 Compact ICC Profiles(CC0)를 쓴다.
+Fonts are Nanum Gothic (SIL Open Font License 1.1, see
+`src/main/resources/fonts/OFL.txt`); the ICC profile is from Compact ICC Profiles (CC0).
 
----
+## Out of scope
 
-## 스코프 아웃
+Decided against, not forgotten. Listed so the two are distinguishable.
 
-PoC 이므로 아래는 **하지 않기로 결정**한 것이다. 빠뜨린 것과 구분하기 위해 명시한다.
+- **Authentication / authorisation** — the issuance API is wide open. Knowing a policy number
+  is enough to download someone else's document
+- **Real accredited certificates** — a self-signed test certificate is generated at runtime, and
+  the trust chain is not validated
+- **Full policy terms** — a one-page summary only
+- **Mobile signing UI** — server-side signing only
+- **Encryption at rest for resident registration numbers** — acceptable only because the data is
+  synthetic; mandatory for real data
+- **Real personal data** — **never.** Only synthetic data is used, and the generated resident
+  registration numbers carry a deliberately incorrect check digit, so they cannot collide with
+  a real one
 
-- **인증/인가** — 발급 API 는 인증 없이 노출된다. 증권번호만 알면 남의 증권을 받을 수 있다
-- **실제 공인인증서 연동** — 자체 서명 테스트 인증서를 런타임에 생성해 쓴다. 신뢰 체인 검증은 하지 않는다
-- **약관 본문 전체** — 증권 요약 1페이지만
-- **모바일 전자서명 UI** — 서버 사이드 서명만
-- **주민번호 컬럼 암호화** — 합성 데이터 전제. 실 데이터라면 필수다
-- **실 개인정보** — **절대 사용 금지.** 합성 데이터만 쓰며, 생성되는 주민등록번호는 검증번호가 일부러 틀리도록 만들어져 실존 번호와 겹칠 수 없다
+## Documentation
 
-## 문서
+The design documents are written in Korean, since that is where the regulatory reasoning is
+most precise. The tables and diagrams read across languages.
 
-- [docs/DESIGN.md](docs/DESIGN.md) — 설계 결정과 그 근거, 구현하며 바뀐 것
-- [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — 규제 요건 ↔ 구현 ↔ 검증 매핑표
-- [docs/BENCHMARK.md](docs/BENCHMARK.md) — 측정 결과
+- [docs/DESIGN.md](docs/DESIGN.md) — design decisions with their reasoning, and what changed
+  during implementation
+- [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — requirement ↔ implementation ↔ verification matrix,
+  plus the gaps left open on purpose
+- [docs/BENCHMARK.md](docs/BENCHMARK.md) — measurement results
