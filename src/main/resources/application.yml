@@ -36,7 +36,7 @@ spring:
 
 epolicy:
   issuer-name: 하이퍼라이크화재해상보험
-  default-template-version: v1
+  default-template-version: v2
   pdf:
     # memory | temp-file — 배치 메모리 측정의 스위치
     buffer-strategy: memory

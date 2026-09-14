@@ -14,9 +14,14 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 통합 테스트 공통 준비.
+ *
+ * <p>{@code @ActiveProfiles("test")} 로 application-test.yml 을 main 설정 <b>위에</b> 얹는다.
+ * src/test/resources/application.yml 로 두면 main 의 같은 이름 파일을 가려 버려서, 테스트가
+ * 운영 설정이 아니라 자바 기본값을 검증하게 된다.
  *
  * <p>인메모리 H2 는 {@code DB_CLOSE_DELAY=-1} 이라 Spring 컨텍스트가 살아 있는 동안 유지된다.
  * 컨텍스트를 공유하면 부팅이 한 번으로 끝나는 대신, 앞 테스트가 만든 발급 이력이 뒤 테스트로 흘러
@@ -24,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * 전부 지우는 것으로 해결한다 — 계약 원장은 남기지 않고 테스트가 직접 넣는다.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 public abstract class IssuanceTestBase {
 
     @Autowired
