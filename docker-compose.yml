@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: epolicy-postgres
+    environment:
+      POSTGRES_DB: epolicy
+      POSTGRES_USER: epolicy
+      POSTGRES_PASSWORD: epolicy
+      # 한글 정렬/비교를 위해 로케일을 명시한다. 기본 C 로케일이면 증권번호 정렬은 괜찮지만
+      # 계약자명 정렬이 사전순이 아니게 된다.
+      LANG: ko_KR.utf8
+    ports:
+      - "5432:5432"
+    volumes:
+      - epolicy-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epolicy -d epolicy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  epolicy-pgdata:

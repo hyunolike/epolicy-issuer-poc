@@ -1,0 +1,32 @@
+# 빌드 산출물
+build/
+out/
+bin/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# 발급 산출물 / 로컬 실행 상태
+documents/
+spool/
+*.p12
+*.pfx
+*.jks
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
