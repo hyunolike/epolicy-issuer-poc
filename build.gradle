@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.hyunolike'
+version = '0.1.0-SNAPSHOT'
+description = 'epolicy-issuer — 전자보험증권 발급 PoC'
+
+ext {
+    pdfboxVersion = '3.0.7'
+    openHtmlVersion = '1.1.85'
+    bouncyCastleVersion = '1.78.1'
+    veraPdfVersion = '1.28.2'
+}
+
+repositories {
+    mavenCentral()
+}
+
+/*
+ * veraPDF 는 검증 프로파일(PDFA-1B.xml 등)을 JAXB 로 읽는다. Spring Boot BOM 이 jaxb-impl 을 4.x 로
+ * 올려 버리면 4.x 는 jakarta.xml.bind 를, veraPDF 는 javax.xml.bind 를 바라보게 되어 프로파일 로딩이
+ * 조용히 실패한다 — 예외 대신 "PDFAFlavour 1b is not supported by this directory" 가 뜬다.
+ * 원인이 전혀 드러나지 않는 종류의 실패라, 테스트 클래스패스에서만 2.3.x 로 고정한다.
+ */
+dependencyManagement {
+    dependencies {
+        dependency 'javax.xml.bind:jaxb-api:2.3.1'
+        dependency 'com.sun.xml.bind:jaxb-impl:2.3.9'
+        dependency 'com.sun.xml.bind:jaxb-core:2.3.0.1'
+    }
+}
+
+// 빌드 JDK 는 17 이상이면 되고, 산출 바이트코드는 17 을 타깃한다.
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters' << '-Xlint:deprecation'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // HTML -> PDF 렌더. PDFBox 3 기반 포크(io.github.openhtmltopdf)를 쓴다.
+    implementation "io.github.openhtmltopdf:openhtmltopdf-core:${openHtmlVersion}"
+    implementation "io.github.openhtmltopdf:openhtmltopdf-pdfbox:${openHtmlVersion}"
+    implementation "io.github.openhtmltopdf:openhtmltopdf-slf4j:${openHtmlVersion}"
+
+    // PDF 조작 / PDFA 메타데이터
+    implementation "org.apache.pdfbox:pdfbox:${pdfboxVersion}"
+    implementation "org.apache.pdfbox:xmpbox:${pdfboxVersion}"
+
+    // PAdES 서명 + RFC 3161 타임스탬프
+    implementation "org.bouncycastle:bcprov-jdk18on:${bouncyCastleVersion}"
+    implementation "org.bouncycastle:bcpkix-jdk18on:${bouncyCastleVersion}"
+    implementation "org.bouncycastle:bcutil-jdk18on:${bouncyCastleVersion}"
+
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+    // PDF/A-1b 검증을 CLI 대신 테스트 안에서 돌린다.
+    testImplementation "org.verapdf:validation-model:${veraPdfVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // PoC 의 힙 제약을 테스트에서도 동일하게 건다.
+    maxHeapSize = '512m'
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+    }
+}

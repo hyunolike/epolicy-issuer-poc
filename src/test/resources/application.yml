@@ -1,0 +1,26 @@
+# 테스트 공통 설정.
+#
+# 경로를 @TempDir 로 클래스마다 다르게 주면 @DynamicPropertySource 때문에 Spring 컨텍스트가
+# 클래스 수만큼 새로 뜬다. 통합 테스트 5개면 부팅 5번이다. 고정 경로를 쓰면 컨텍스트를 공유하고,
+# 대신 테스트마다 상태를 지우는 책임을 IssuanceTestBase 가 진다.
+epolicy:
+  storage:
+    root: build/test-work/documents
+  sign:
+    keystore-path: build/test-work/certs/test-signer.p12
+  pdf:
+    spool-dir: build/test-work/spool
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+logging:
+  level:
+    com.hyunolike.epolicy: WARN
+    org.springframework.batch: WARN
+    org.hibernate: WARN
+    com.openhtmltopdf: ERROR
+    org.apache.pdfbox.pdmodel.font: ERROR
+    org.verapdf: ERROR

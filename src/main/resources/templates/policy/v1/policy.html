@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<!--/*
+  전자보험증권 본문 템플릿 v1.
+
+  이 디렉터리의 파일은 수정하지 않는다. 양식이 바뀌면 v2/ 를 새로 만든다. 발급 이력에 templateVersion
+  이 박혀 있어서, 과거 발급분을 재발급할 때 당시 양식으로 렌더해야 같은 문서가 나오기 때문이다.
+
+  PDF/A-1b 제약 때문에 지킨 것들:
+   - 외부 리소스 참조 없음. CSS 는 인라인, 폰트는 렌더러가 코드로 주입, 이미지 없음
+   - 투명도(opacity, rgba, box-shadow) 사용 금지 — PDF/A-1 은 투명도를 허용하지 않는다
+   - 색은 모두 불투명 값으로 지정
+*/-->
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="'전자보험증권 ' + ${view.contractNo}">전자보험증권</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm 16mm 16mm 16mm;
+            @bottom-center {
+                content: "— " counter(page) " / " counter(pages) " —";
+                font-family: 'NanumGothic', sans-serif;
+                font-size: 8pt;
+                color: #666666;
+            }
+        }
+
+        body {
+            font-family: 'NanumGothic', sans-serif;
+            font-size: 10pt;
+            line-height: 1.55;
+            color: #111111;
+            margin: 0;
+        }
+
+        .issuer {
+            font-size: 9pt;
+            color: #444444;
+            letter-spacing: 0.5pt;
+        }
+
+        h1 {
+            font-size: 20pt;
+            font-weight: bold;
+            letter-spacing: 6pt;
+            text-align: center;
+            margin: 3mm 0 1mm 0;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 9pt;
+            color: #555555;
+            margin-bottom: 4mm;
+        }
+
+        .rule {
+            border-top: 1.2pt solid #1a1a1a;
+            margin-bottom: 4mm;
+        }
+
+        h2 {
+            font-size: 11pt;
+            font-weight: bold;
+            margin: 5mm 0 2mm 0;
+            padding-left: 2mm;
+            border-left: 3pt solid #1a1a1a;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9.5pt;
+        }
+
+        th, td {
+            border: 0.6pt solid #b0b0b0;
+            padding: 2mm 2.5mm;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: #f0f0f0;
+            text-align: left;
+            font-weight: bold;
+            width: 26%;
+            white-space: nowrap;
+        }
+
+        table.coverage th {
+            width: auto;
+            text-align: center;
+        }
+
+        table.coverage td.amount {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        table.coverage tfoot td {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .premium {
+            margin-top: 4mm;
+            border: 1pt solid #1a1a1a;
+            padding: 3mm;
+            font-size: 11pt;
+            text-align: right;
+        }
+
+        .premium .label {
+            float: left;
+            font-weight: bold;
+        }
+
+        .notice {
+            margin-top: 5mm;
+            font-size: 8.5pt;
+            color: #333333;
+            background-color: #f7f7f7;
+            border: 0.6pt solid #cccccc;
+            padding: 3mm;
+        }
+
+        .notice li {
+            margin-bottom: 1mm;
+        }
+
+        .signature-block {
+            margin-top: 6mm;
+            text-align: center;
+            font-size: 10pt;
+        }
+
+        .signature-block .issued-on {
+            margin-bottom: 3mm;
+        }
+
+        .signature-block .company {
+            font-size: 13pt;
+            font-weight: bold;
+            letter-spacing: 2pt;
+        }
+
+        .masking-note {
+            margin-top: 3mm;
+            font-size: 7.5pt;
+            color: #777777;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+<div class="issuer" th:text="${issuerName}">하이퍼라이크화재해상보험</div>
+<h1>전자보험증권</h1>
+<div class="subtitle" th:text="${view.productName}">상품명</div>
+<div class="rule"></div>
+
+<h2>증권 기본사항</h2>
+<table>
+    <tr>
+        <th>증권번호</th>
+        <td th:text="${view.contractNo}">KB-2026-0001-0042</td>
+        <th>보험기간</th>
+        <td th:text="${view.periodText}">2026년 01월 01일 ~ 2027년 01월 01일 (12개월)</td>
+    </tr>
+    <tr>
+        <th>상품명</th>
+        <td th:text="${view.productName}">무배당 일반상해보험</td>
+        <th>계약체결일</th>
+        <td th:text="${view.issuedOnText}">2026년 01월 01일</td>
+    </tr>
+</table>
+
+<h2>계약 관계자</h2>
+<table>
+    <tr>
+        <th>계약자</th>
+        <td th:text="${view.policyholderName}">홍*동</td>
+        <th>주민등록번호</th>
+        <td th:text="${view.policyholderRegisteredNo}">900101-1******</td>
+    </tr>
+    <tr>
+        <th>연락처</th>
+        <td th:text="${view.policyholderPhone}">010-****-5678</td>
+        <th>주소</th>
+        <td th:text="${view.policyholderAddress}">서울특별시 강남구 ***</td>
+    </tr>
+    <tr>
+        <th>피보험자</th>
+        <td th:text="${view.insuredName}">홍*동</td>
+        <th>주민등록번호</th>
+        <td th:text="${view.insuredRegisteredNo}">900101-1******</td>
+    </tr>
+</table>
+
+<h2>보장 내용</h2>
+<table class="coverage">
+    <thead>
+    <tr>
+        <th style="width: 38%;">담보명</th>
+        <th style="width: 22%;">가입금액</th>
+        <th>비고</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="coverage : ${view.coverages}">
+        <td th:text="${coverage.name}">상해사망</td>
+        <td class="amount" th:text="${coverage.amount}">100,000,000원</td>
+        <td th:text="${coverage.note}">보험기간 중 상해로 사망한 경우</td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr>
+        <td>가입금액 합계</td>
+        <td class="amount" th:text="${view.totalCoverageText}">150,000,000원</td>
+        <td></td>
+    </tr>
+    </tfoot>
+</table>
+
+<div class="premium">
+    <span class="label">납입보험료</span>
+    <span th:text="${view.premiumText}">120,000원</span>
+</div>
+
+<div class="notice">
+    <strong>안내사항</strong>
+    <ul>
+        <li>이 증권은 전자문서로 발급되었으며, 전자서명과 해시값으로 위·변조 여부를 확인할 수 있습니다.</li>
+        <li>증권 내 개인정보는 개인정보 보호를 위해 일부 마스킹 처리되어 있습니다.</li>
+        <li>보장 내용의 구체적인 지급 사유와 면책 사항은 약관을 따릅니다.</li>
+        <li>본 문서는 기술 검증용(PoC) 합성 데이터로 생성되었으며 실제 보험 계약이 아닙니다.</li>
+    </ul>
+</div>
+
+<div class="signature-block">
+    <div class="issued-on" th:text="${view.issuedOnText}">2026년 01월 01일</div>
+    <div class="company" th:text="${issuerName}">하이퍼라이크화재해상보험</div>
+</div>
+
+<div class="masking-note"
+     th:text="'양식버전 ' + ${view.templateVersion} + ' · 개인정보 마스킹 적용'">양식버전 v1</div>
+
+</body>
+</html>
