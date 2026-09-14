@@ -90,14 +90,17 @@ class PolicyIssuancePipelineTest extends IssuanceTestBase {
     }
 
     @Test
-    @DisplayName("증권 본문이 한 페이지에 담긴다")
+    @DisplayName("담보가 가장 많은 계약도 한 페이지에 담긴다")
     void fitsOnASinglePage() throws IOException {
+        // 담보 6건 + 긴 비고. 표준 계약(3건)으로 확인하면 실제 발급분의 절반 이상이 두 장으로
+        // 넘어가는 것을 놓친다 — 넘어간 둘째 장에는 서명 블록만 남고, 1만 건이면 그 페이지 수가
+        // 그대로 렌더 시간과 파일 크기에 곱해진다.
+        contractRepository.save(TestFixtures.maxCoverageContractEntity());
+
         IssueResult result = issuePolicyUseCase.issue(IssueCommand.of(TestFixtures.CONTRACT_NO));
 
         try (PdfArtifact stored = load(result);
              PDDocument document = Loader.loadPDF(stored.readAllBytes())) {
-            // 담보 3건짜리 표준 계약이 두 페이지로 넘어가면 여백 설계가 잘못된 것이다. 1만 건이면
-            // 페이지 수가 그대로 파일 크기와 렌더 시간에 곱해진다.
             assertThat(document.getNumberOfPages()).isEqualTo(1);
         }
     }

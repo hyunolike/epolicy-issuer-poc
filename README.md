@@ -21,6 +21,7 @@ requirements, not the libraries, decide the architecture.**
 ## Table of Contents
 
 - [What this is](#what-this-is)
+- [What it produces](#what-it-produces)
 - [The pipeline](#the-pipeline)
 - [Quick start](#quick-start)
 - [What this PoC proves](#what-this-poc-proves)
@@ -49,6 +50,26 @@ contains.
 | Delivery evidence | Issuance history + hashes → re-issuance needs an idempotency rule |
 | Personal-data protection | Masking must happen **before** rendering, not in the template |
 | Bulk issuance | Chunked batch + streaming → never hold a whole PDF on the heap |
+
+## What it produces
+
+<div align="center">
+  <img src="docs/images/policy-sample.png" width="560" alt="A generated electronic insurance policy, rendered from the actual PDF output">
+</div>
+
+There is no front-end. The user-facing artifact **is** the PDF, so this is the closest thing to
+a screen. What the image shows is the whole argument of the repository in one page:
+
+- **The masking is in the data, not the styling.** `류*현`, `880324-1******`, `010-****-1694`,
+  `대구광역시 동구 ***` — extract the text layer and that is exactly what comes out. Nothing is
+  merely painted over.
+- **Everything fits on one page, even at maximum coverage count.** Page count multiplies
+  straight into render time and file size across 10,000 issuances.
+- **No external resources.** Fonts are embedded as subsets, the layout is pure CSS, there are no
+  images — all of it forced by PDF/A-1b.
+
+The data is synthetic. To regenerate the image, issue a document and render page 1 with PDFBox's
+`PDFRenderer` at 130 DPI.
 
 ## The pipeline
 

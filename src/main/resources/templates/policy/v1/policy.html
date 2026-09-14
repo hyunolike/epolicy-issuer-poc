@@ -17,7 +17,7 @@
     <style>
         @page {
             size: A4;
-            margin: 15mm 16mm 16mm 16mm;
+            margin: 14mm 15mm 14mm 15mm;
             @bottom-center {
                 content: "— " counter(page) " / " counter(pages) " —";
                 font-family: 'NanumGothic', sans-serif;
@@ -28,8 +28,8 @@
 
         body {
             font-family: 'NanumGothic', sans-serif;
-            font-size: 10pt;
-            line-height: 1.55;
+            font-size: 9.5pt;
+            line-height: 1.45;
             color: #111111;
             margin: 0;
         }
@@ -41,11 +41,11 @@
         }
 
         h1 {
-            font-size: 20pt;
+            font-size: 18pt;
             font-weight: bold;
-            letter-spacing: 6pt;
+            letter-spacing: 4pt;
             text-align: center;
-            margin: 3mm 0 1mm 0;
+            margin: 2mm 0 1mm 0;
         }
 
         .subtitle {
@@ -63,7 +63,7 @@
         h2 {
             font-size: 11pt;
             font-weight: bold;
-            margin: 5mm 0 2mm 0;
+            margin: 4mm 0 1.5mm 0;
             padding-left: 2mm;
             border-left: 3pt solid #1a1a1a;
         }
@@ -71,12 +71,12 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9.5pt;
+            font-size: 9pt;
         }
 
         th, td {
             border: 0.6pt solid #b0b0b0;
-            padding: 2mm 2.5mm;
+            padding: 1.4mm 2mm;
             vertical-align: top;
         }
 
@@ -84,13 +84,17 @@
             background-color: #f0f0f0;
             text-align: left;
             font-weight: bold;
-            width: 26%;
+            width: 19%;
             white-space: nowrap;
         }
 
         table.coverage th {
             width: auto;
             text-align: center;
+        }
+
+        td.no-wrap {
+            white-space: nowrap;
         }
 
         table.coverage td.amount {
@@ -105,10 +109,10 @@
         }
 
         .premium {
-            margin-top: 4mm;
+            margin-top: 3mm;
             border: 1pt solid #1a1a1a;
-            padding: 3mm;
-            font-size: 11pt;
+            padding: 2.2mm 3mm;
+            font-size: 10.5pt;
             text-align: right;
         }
 
@@ -118,36 +122,41 @@
         }
 
         .notice {
-            margin-top: 5mm;
-            font-size: 8.5pt;
+            margin-top: 4mm;
+            font-size: 8pt;
             color: #333333;
             background-color: #f7f7f7;
             border: 0.6pt solid #cccccc;
-            padding: 3mm;
+            padding: 2.2mm 3mm;
+        }
+
+        .notice ul {
+            margin: 1.5mm 0 0 0;
+            padding-left: 5mm;
         }
 
         .notice li {
-            margin-bottom: 1mm;
+            margin-bottom: 0.6mm;
         }
 
         .signature-block {
-            margin-top: 6mm;
+            margin-top: 5mm;
             text-align: center;
-            font-size: 10pt;
+            font-size: 9.5pt;
         }
 
         .signature-block .issued-on {
-            margin-bottom: 3mm;
+            margin-bottom: 2mm;
         }
 
         .signature-block .company {
-            font-size: 13pt;
+            font-size: 12pt;
             font-weight: bold;
-            letter-spacing: 2pt;
+            letter-spacing: 1.5pt;
         }
 
         .masking-note {
-            margin-top: 3mm;
+            margin-top: 2.5mm;
             font-size: 7.5pt;
             color: #777777;
             text-align: right;
@@ -165,7 +174,7 @@
 <table>
     <tr>
         <th>증권번호</th>
-        <td th:text="${view.contractNo}">KB-2026-0001-0042</td>
+        <td class="no-wrap" th:text="${view.contractNo}">KB-2026-0001-0042</td>
         <th>보험기간</th>
         <td th:text="${view.periodText}">2026년 01월 01일 ~ 2027년 01월 01일 (12개월)</td>
     </tr>
@@ -203,8 +212,8 @@
 <table class="coverage">
     <thead>
     <tr>
-        <th style="width: 38%;">담보명</th>
-        <th style="width: 22%;">가입금액</th>
+        <th style="width: 30%;">담보명</th>
+        <th style="width: 20%;">가입금액</th>
         <th>비고</th>
     </tr>
     </thead>
