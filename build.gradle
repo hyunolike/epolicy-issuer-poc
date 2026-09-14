@@ -53,6 +53,9 @@ dependencies {
     implementation "io.github.openhtmltopdf:openhtmltopdf-core:${openHtmlVersion}"
     implementation "io.github.openhtmltopdf:openhtmltopdf-pdfbox:${openHtmlVersion}"
     implementation "io.github.openhtmltopdf:openhtmltopdf-slf4j:${openHtmlVersion}"
+    // 인라인 SVG 렌더(Batik). 증권 로고를 벡터로 넣기 위한 것으로, 래스터 이미지와 달리
+    // 확대해도 깨지지 않고 파일도 작다 — 장기보존 문서에 이미지가 필요하면 이쪽이 맞다.
+    implementation "io.github.openhtmltopdf:openhtmltopdf-svg-support:${openHtmlVersion}"
 
     // PDF 조작 / PDFA 메타데이터
     implementation "org.apache.pdfbox:pdfbox:${pdfboxVersion}"

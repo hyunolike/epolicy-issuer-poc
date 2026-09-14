@@ -120,6 +120,8 @@ public record PolicyView(MaskedValue contractNo, MaskedValue policyholderName,
 
 재발급 시 "발급 당시 양식"으로 렌더해야 동일한 문서가 나온다. `templateVersion` 을 이력에 저장하고, 템플릿 파일은 `templates/policy/v1/` 처럼 버전 디렉터리를 둔다. **기존 버전 디렉터리는 수정하지 않는다** — 수정하는 순간 과거 발급분의 재현성이 깨진다.
 
+이 규칙은 v2 가 생기면서 처음으로 실효를 갖게 됐다. 로고를 넣을 때 v1 을 고치는 대신 `templates/policy/v2/` 를 만들고 기본값을 v2 로 올렸다. v1 을 고쳤다면 이미 발급된 증권 전부의 contentHash 가 그 순간 달라진다 — 문서상 당부가 아니라 실제로 깨지는 값이다. `TemplateVersioningTest` 가 "v2 가 있어도 v1 로 재발급하면 최초와 같은 바이트"를 고정한다.
+
 ### ⑤ 폰트는 서브셋 임베딩
 
 PDF/A 는 폰트 전체 임베딩을 요구하지만 실제로 사용된 글리프만 담는 서브셋은 허용된다. 나눔고딕 Regular+Bold 원본은 합쳐 4MB 이고, 통째로 넣으면 1만 건에 40GB 다.
@@ -142,6 +144,44 @@ public interface PdfArtifactFactory {
 `PdfArtifact` 는 `AutoCloseable` 이고, 임시파일 구현은 close 시점에 파일을 지운다. 힙 누수를 디스크 누수로 바꿔 놓고 측정만 좋아 보이는 것을 막기 위해, 발급 3회 후 스풀 디렉터리가 비어 있는지 확인하는 테스트를 뒀다.
 
 `PdfArtifact.location()` 이 디스크 경로를 돌려주면 PDFBox 는 `RandomAccessReadBufferedFile` 로 읽어 힙을 거의 쓰지 않는다. PDFBox 3 에서 `MemoryUsageSetting.setupTempFileOnly()` 의 자리는 `IOUtils.createTempFileOnlyStreamCache()` 가 대신한다.
+
+**측정 결과는 예상과 달랐다.** 두 전략의 처리량이 16.7 vs 16.2건/초, 힙 최대가 511 vs 510MB 로 사실상 같았다. 설계 단계에서는 chunk 100 × 500KB = 50MB 상주를 걱정했는데, 실제 문서가 76KB 라 chunk 당 7.6MB 에 그친다. 이 규모에서는 임시파일로 뺄 유인이 없고 파일 I/O 만 붙는다 — **지금 조건에서는 메모리 전략이 맞다.** 측정하지 않았다면 반대로 갔을 결정이고, 포트를 둔 값어치가 여기서 났다.
+
+### ⑦ 이미지는 인라인 SVG, 단 투명도 금지 (추가)
+
+증권에 발행사 로고가 필요해지면서 정한 것이다. 선택지는 셋이었다.
+
+| 방법 | 평가 |
+|---|---|
+| 순수 CSS/텍스트 | 의존성 0, PDF/A 안전 보장. 형태 있는 로고는 못 만든다 |
+| **인라인 SVG** | 벡터로 들어가 확대해도 안 깨지고 파일도 거의 안 는다. Batik 의존성이 붙는다 |
+| 래스터 PNG | PDF/A-1b 가 허용은 하지만 해상도에 묶이고 파일이 커진다. 장기보존엔 제일 나쁘다 |
+
+SVG 를 골랐다. `openhtmltopdf-svg-support`(Batik)가 SVG 를 PDF 벡터 연산자로 그리므로 로고가 래스터가 아니라 path 로 들어간다. 측정해 보니 v1(로고 없음) 대비 파일 크기 증가는 1KB 미만이었다.
+
+**투명도는 쓸 수 없다.** PDF/A-1 이 금지한다. 이것을 주석으로 당부하는 대신 테스트로 고정했다 — `fill-opacity="0.45"` 하나를 넣은 SVG 로 렌더하면 veraPDF 가 이렇게 답한다.
+
+```
+[6.4] If a ca key is present in an ExtGState object, its value shall be 1.0
+[6.4] If a CA key is present in an ExtGState object, its value shall be 1.0
+```
+
+`fill-opacity` 가 그대로 `/ca 0.45` 인 ExtGState 가 된다. `PdfBoxArchiveAdapter` 는 페이지의 투명도 그룹만 벗겨낼 뿐 콘텐츠 안의 이 값은 손대지 못하므로, 제약은 **입력 쪽에서** 지켜야 한다. `SvgRenderingTest` 가 불투명 SVG 통과와 투명 SVG 거부를 한 쌍으로 확인한다.
+
+**외부 참조와 스크립트는 차단한다.** `BatikSVGDrawer` 기본 생성자가 `SvgScriptMode.SECURE` + `SvgExternalResourceMode.SECURE` 를 고른다. PDF/A 가 외부 참조를 금지하기도 하지만, SVG 는 스크립트와 외부 엔티티를 실어 나를 수 있는 입력이기도 하다.
+
+**SVG 안에 텍스트를 두지 않았다.** `<text>` 를 쓰면 폰트가 필요해지고, 등록하지 않은 폰트는 시스템 폰트로 대체된다. 서명 단계의 AcroForm `/DR` 에서 이미 한 번 겪은 문제(산출물이 실행 머신에 의존)라 로고는 path 로만 구성했다.
+
+**비용은 공짜가 아니고, 예상한 곳에 있지도 않았다.** 200건 표본에서는 렌더가 42.8ms → 58.6ms 로 늘어난 것만 보였다. 1만 건으로 올리자 진짜 비용이 드러났다.
+
+| | 렌더 | 처리량 | **GC** |
+|---|---|---|---|
+| 로고 없음(v1) | 28.5ms | 22.0건/초 | **20.5s** |
+| 로고 있음(v2) | 39.5ms | 16.7건/초 | **93.4s** |
+
+렌더는 11ms 늘었는데 GC 는 4.5배가 됐다. Batik 이 문서마다 같은 SVG 를 다시 파싱하며 객체를 크게 쏟아내고, 512MB 천장에서 그것이 GC 시간으로 되돌아온다. 총 소요 차이 142초 중 73초가 GC 다.
+
+더 나아가, 이 할당 압력이 **4분할 파티셔닝을 OOM 으로 죽였다.** 로고를 빼면 같은 설정이 완주하고 처리량이 22.0 → 49.5건/초로 뛴다. 장식 하나가 아키텍처 비용을 갖는 지점이고, 자세한 것은 [BENCHMARK.md](BENCHMARK.md) 4장에 있다. 근본 해결은 SVG 를 한 번 렌더해 PDF Form XObject 로 재사용하는 것이다 — [10장](#10-남은-것) 참고.
 
 ---
 
@@ -226,6 +266,7 @@ record PolicyDocument(DocumentId id, ContractNo contractNo,
 | 서명 검증 | PDFBox + BouncyCastle | 통과 |
 | 변조 탐지 | 서명 파일 바이트 1개 변경 후 재검증 | **검증 실패해야 정상** |
 | 재발급 멱등성 | 강제 재발급 후 contentHash 비교 | 동일 |
+| SVG 로고 비용 | 같은 조건에서 v1(로고 없음) ↔ v2(로고) 렌더 시간 | 차이를 수치로 남긴다 |
 
 힙은 `Runtime.totalMemory()` 를 끝에 한 번 읽는 방식으로는 GC 직후 값을 보게 되어 항상 낮게 나온다. 0.2초 간격 샘플링 최대치를 쓴다. 정확한 값은 JFR 이 필요하지만, "512MB 안에서 완주하는가" 판단에는 이것으로 충분하다.
 
@@ -269,6 +310,12 @@ record PolicyDocument(DocumentId id, ContractNo contractNo,
 
 PDFBox 3.0.7 에 번들된 ICC 는 CMYK(`CGATS001Compat-v2-micro.icc`)뿐이라 RGB 문서에 쓸 수 없다. Compact ICC Profiles 의 sRGB v2(CC0, **456바이트**)를 쓴다. 일반 sRGB 프로파일은 3~60KB 이고 1만 건이면 그대로 곱해진다.
 
+### 테스트 설정이 운영 설정을 가리고 있었다
+
+`src/test/resources/application.yml` 은 main 의 같은 이름 파일을 **덮어쓰는 것이 아니라 클래스패스에서 가려 버린다.** 그래서 통합 테스트는 운영 설정이 아니라 `@ConfigurationProperties` 의 자바 기본값을 검증하고 있었다. 둘이 같은 동안에는 아무 증상이 없다가, 기본 양식을 v2 로 올리면서 드러났다 — application.yml 은 v2 인데 테스트는 v1 을 보고 있었다.
+
+`application-test.yml` + `@ActiveProfiles("test")` 로 바꿔 main 설정 위에 얹히게 했다. 자바 기본값도 v2 로 맞춰 두었고, 어긋나면 `TemplateVersioningTest` 가 잡는다.
+
 ### `ContractLoadPort` 추가
 
 설계안의 포트 목록에 없었지만 파이프라인 [0]단계가 필요로 한다. 실제 시스템이라면 계약 원장은 다른 시스템이고, 여기가 그 경계다.
@@ -288,7 +335,7 @@ PDFBox 3.0.7 에 번들된 ICC 는 CMYK(`CGATS001Compat-v2-micro.icc`)뿐이라 
 | M3 | 마스킹 + PDF/A-1b 변환 | 완료 — veraPDF 통과 |
 | M4 | 전자서명 + TSA | 완료 — B-B 기본, B-T 옵션, 변조 탐지 확인 |
 | M5 | Spring Batch | 완료 — DLQ 동작, 재실행 멱등 |
-| M6 | 파티셔닝 + 측정 문서화 | 완료 — 4분할 배타성 확인, BENCHMARK.md |
+| M6 | 파티셔닝 + 측정 문서화 | 완료 — 4분할 배타성 확인. 1만 건에서는 OOM 이 나서 원인까지 분리했다 ([BENCHMARK.md](BENCHMARK.md)) |
 
 ---
 
@@ -299,4 +346,5 @@ PoC 범위 밖이지만, 실제로 만든다면 다음이 먼저다.
 - **LTV(장기검증)** — 서명 시점의 CRL/OCSP 를 문서에 박아 넣어야 인증서 만료 후에도 검증이 성립한다. 지금은 B-T 까지다
 - **보관 파일과 이력의 정합성 배치** — 고아 파일 정리, fileHash 전수 재검증
 - **재발급 표기** — contentHash 멱등성과 양립하는 방법(교부 안내문 분리 등)
+- **로고 SVG 를 문서마다 다시 파싱한다** — 1만 건이면 같은 로고를 1만 번 파싱한다(문서당 약 16ms, 합계 160초). 한 번 렌더해 PDF Form XObject 로 만들어 두고 재사용하면 사라지는 비용인데, openhtmltopdf 가 그 훅을 열어 두지 않아 렌더러 밖에서 후처리해야 한다
 - **PD4ML 비교군** — `PdfRenderPort` 에 어댑터 하나를 더 붙이면 "레거시 상용 라이브러리 vs 오픈소스" 비교표가 나온다

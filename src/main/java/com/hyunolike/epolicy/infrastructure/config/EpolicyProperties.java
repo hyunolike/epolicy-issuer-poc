@@ -9,7 +9,8 @@ public class EpolicyProperties {
     /** 증권에 표기되는 발행 주체. 합성 데이터 PoC 이므로 실존하지 않는 이름을 쓴다. */
     private String issuerName = "하이퍼라이크화재해상보험";
 
-    private String defaultTemplateVersion = "v1";
+    /** 기본 양식. application.yml 의 값과 어긋나면 안 된다 — 테스트가 그 불일치를 잡는다. */
+    private String defaultTemplateVersion = "v2";
 
     private final Pdf pdf = new Pdf();
     private final Sign sign = new Sign();

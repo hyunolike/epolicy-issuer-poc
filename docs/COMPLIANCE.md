@@ -18,6 +18,8 @@
 | 장기보존 시 **외부 의존 없이** 동일하게 렌더되어야 한다 | 폰트 임베딩 강제, 외부 리소스 참조 금지 | 템플릿 CSS 인라인, 폰트는 코드로 주입, 이미지 없음 | 같은 테스트 (임베딩 누락 시 veraPDF 가 잡는다) |
 | 색 재현 기준이 문서에 있어야 한다 | OutputIntent + sRGB ICC | `PdfBoxArchiveAdapter.applyOutputIntent` | 같은 테스트 |
 | 메타데이터가 일관되어야 한다 | 문서정보 딕셔너리와 XMP 를 같은 값으로 | `applyDocumentInformation` + `applyXmpMetadata` | 같은 테스트 (불일치는 PDF/A-1b 위반) |
+| 투명도를 쓸 수 없다 (PDF/A-1 §6.4) | CSS 와 SVG 양쪽에서 opacity·filter·알파 그라디언트 금지 | 템플릿 CSS, `BatikSVGDrawer` | `SvgRenderingTest` — 투명 SVG 가 **거부되는지**까지 확인 |
+| 이미지도 재현 가능해야 한다 | 로고를 래스터가 아닌 인라인 SVG 벡터로 | `templates/policy/v2/policy.html` | `TemplateVersioningTest.svgLogoIsVectorAndCheap` |
 
 ### 문서 무결성 · 전자서명
 

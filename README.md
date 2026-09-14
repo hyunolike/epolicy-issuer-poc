@@ -65,8 +65,11 @@ a screen. What the image shows is the whole argument of the repository in one pa
   merely painted over.
 - **Everything fits on one page, even at maximum coverage count.** Page count multiplies
   straight into render time and file size across 10,000 issuances.
-- **No external resources.** Fonts are embedded as subsets, the layout is pure CSS, there are no
-  images — all of it forced by PDF/A-1b.
+- **The logo is vector, not raster.** An inline SVG drawn by Batik into PDF path operators —
+  under 1KB, and it stays sharp at any zoom. Raster would be resolution-bound, which is the
+  wrong trade for a document meant to outlive its viewer.
+- **No external resources.** Fonts are embedded as subsets, the layout is pure CSS, scripts and
+  external SVG references are blocked — all of it forced by PDF/A-1b.
 
 The data is synthetic. To regenerate the image, issue a document and render page 1 with PDFBox's
 `PDFRenderer` at 130 DPI.
@@ -135,7 +138,7 @@ It prints a Markdown table you can paste straight into
 
 | Success criterion | How it is checked | Result |
 |---|---|---|
-| 10,000 documents issued within a 512MB heap | `benchmark` profile with `-Xmx512m` | [BENCHMARK.md](docs/BENCHMARK.md) |
+| 10,000 documents issued within a 512MB heap | `benchmark` profile with `-Xmx512m` | pass — 597s, peak 511MB ([details](docs/BENCHMARK.md)) |
 | Output passes PDF/A-1b validation | `PolicyIssuancePipelineTest.isPdfA1bCompliant` (veraPDF) | pass |
 | Signature verifies, **and fails on a 1-byte change** | `DocumentIntegrityTest` | pass |
 | Re-issuing the same contract yields the same contentHash | `IssuanceIdempotencyTest` | pass |
@@ -157,6 +160,12 @@ still *looks* unmasked. There is no code path from the template to the original.
 
 **PDF/A conversion precedes signing.** Signing freezes the bytes; adding metadata afterwards
 breaks the signature. This ordering is physical, not stylistic.
+
+**Template versions are frozen, not edited.** Adding the logo meant creating
+`templates/policy/v2/` rather than touching `v1`. Editing `v1` would have changed the
+`contentHash` of every policy already issued under it — re-issuance must render with the form
+that was in force at the time. A test pins this: after `v2` exists, re-issuing with `v1` still
+produces byte-identical output.
 
 **There are two hashes, deliberately.** `contentHash` (pre-signature) answers "is this the same
 document?" and `fileHash` (post-signature) answers "has the stored file been touched?". A
@@ -207,8 +216,9 @@ code does not move.
 |---|---|---|
 | Runtime | Java 17 target, Spring Boot 3.3 | builds on JDK 17+ |
 | Batch | Spring Batch 5 | chunked, optionally partitioned |
-| Template | Thymeleaf | versioned directories (`templates/policy/v1/`) |
+| Template | Thymeleaf | versioned directories (`templates/policy/v1/`, `v2/`) |
 | PDF rendering | `io.github.openhtmltopdf` 1.1.85 | the PDFBox 3 fork, **not** the `danfickle` original |
+| Inline SVG | `openhtmltopdf-svg-support` (Batik 1.17) | vector logo; transparency is forbidden by PDF/A-1 |
 | PDF manipulation | Apache PDFBox 3.0.7 | PDF/A conversion, signing, verification |
 | Signing | BouncyCastle 1.78.1 | PAdES-B-B / B-T |
 | Timestamping | RFC 3161 (public TSA) | disabled by default |
